@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Editor from "@monaco-editor/react";
 import {
   ShieldCheck,
@@ -25,6 +25,8 @@ import {
   Copy,
   WandSparkles
 } from "lucide-react";
+import { SplineScene } from "./components/ui/SplineScene.jsx";
+import { Spotlight } from "./components/ui/Spotlight.jsx";
 import "./App.css";
 
 const initialCode = `def calculate_average(numbers):
@@ -44,6 +46,7 @@ print("Average:", result)
 `;
 
 function App() {
+  const editorRef = useRef(null);
   const [code, setCode] = useState(initialCode);
   const [language, setLanguage] = useState("python");
   const [analyzed, setAnalyzed] = useState(false);
@@ -63,6 +66,77 @@ function App() {
   const [fixError, setFixError] = useState("");
   const [showPreview, setShowPreview] = useState(false);
   const [copyMessage, setCopyMessage] = useState("");
+  const [activeSection, setActiveSection] = useState("dashboard");
+  const [securityOnly, setSecurityOnly] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [editorFontSize, setEditorFontSize] = useState(14);
+  const [reviewHistory, setReviewHistory] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("codesentry-review-history") || "[]");
+    } catch {
+      return [];
+    }
+  });
+
+  const searchMatches = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return [];
+    return code.split("\n")
+      .map((line, index) => ({ line: index + 1, text: line.trim() }))
+      .filter((item) => item.text.toLowerCase().includes(query))
+      .slice(0, 8);
+  }, [code, searchQuery]);
+
+  const navigateTo = (section, elementId) => {
+    setActiveSection(section);
+    setMobileMenu(false);
+    setSecurityOnly(section === "security");
+    document.getElementById(elementId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const saveReview = (data) => {
+    const entry = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      createdAt: new Date().toISOString(),
+      code,
+      language,
+      results: data,
+      totalIssues: data.total_issues,
+    };
+    setReviewHistory((current) => {
+      const next = [entry, ...current].slice(0, 25);
+      try {
+        localStorage.setItem("codesentry-review-history", JSON.stringify(next));
+      } catch {
+        // Keep the current session usable when browser storage is unavailable.
+      }
+      return next;
+    });
+  };
+
+  const loadHistoryEntry = (entry) => {
+    setCode(entry.code);
+    setLanguage(entry.language);
+    setResults(entry.results);
+    setAnalyzed(true);
+    setApiError("");
+    setSecurityOnly(false);
+    setShowHistory(false);
+    navigateTo("review", "code-analyzer");
+  };
+
+  const clearHistory = () => {
+    setReviewHistory([]);
+    try {
+      localStorage.removeItem("codesentry-review-history");
+    } catch {
+      // Ignore storage errors; the in-memory history is still cleared.
+    }
+  };
 
   // Static code analysis
   const handleAnalyze = async () => {
@@ -100,6 +174,7 @@ function App() {
 
       setResults(data);
       setAnalyzed(true);
+      saveReview(data);
 
     } catch (error) {
       setApiError(
@@ -223,7 +298,7 @@ function App() {
     try {
       await navigator.clipboard.writeText(correctedCode);
       setCopyMessage("Code copied successfully!");
-    } catch (error) {
+    } catch {
       setFixError(
         "Unable to copy code. Please select and copy it manually."
       );
@@ -250,6 +325,9 @@ function App() {
 
   // Calculate issue counts
   const findings = results?.findings || [];
+  const visibleFindings = securityOnly
+    ? findings.filter((item) => item.type === "security")
+    : findings;
 
   const securityCount = findings.filter(
     (item) => item.type === "security"
@@ -305,22 +383,27 @@ function App() {
         <div className="workspace-label">WORKSPACE</div>
 
         <nav className="navigation">
-          <button className="nav-item active">
+          <button className={`nav-item ${activeSection === "dashboard" ? "active" : ""}`} onClick={() => navigateTo("dashboard", "dashboard-top")}>
             <LayoutDashboard size={19} />
             Dashboard
           </button>
 
-          <button className="nav-item">
+          <button className={`nav-item ${activeSection === "review" ? "active" : ""}`} onClick={() => navigateTo("review", "code-analyzer")}>
             <Code2 size={19} />
             Code Review
           </button>
 
-          <button className="nav-item">
+          <button className={`nav-item ${activeSection === "history" ? "active" : ""}`} onClick={() => {
+            setShowHistory(true);
+            setActiveSection("history");
+            setMobileMenu(false);
+            window.setTimeout(() => document.getElementById("review-history")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+          }}>
             <History size={19} />
             Review History
           </button>
 
-          <button className="nav-item">
+          <button className={`nav-item ${activeSection === "security" ? "active" : ""}`} onClick={() => navigateTo("security", "review-results")}>
             <ShieldAlert size={19} />
             Security Scanner
           </button>
@@ -333,10 +416,20 @@ function App() {
             <p>Your intelligent code review environment.</p>
           </div>
 
-          <button className="nav-item">
+          <button className={`nav-item ${settingsOpen ? "active" : ""}`} onClick={() => setSettingsOpen((open) => !open)} aria-expanded={settingsOpen}>
             <Settings size={19} />
             Settings
           </button>
+
+          {settingsOpen && (
+            <div className="settings-popover">
+              <strong>Editor settings</strong>
+              <label htmlFor="editor-font-size">Font size</label>
+              <select id="editor-font-size" value={editorFontSize} onChange={(event) => setEditorFontSize(Number(event.target.value))}>
+                {[12, 13, 14, 15, 16, 18].map((size) => <option key={size} value={size}>{size}px</option>)}
+              </select>
+            </div>
+          )}
 
           <div className="profile">
             <div className="avatar">S</div>
@@ -352,7 +445,7 @@ function App() {
       <main className="main-content">
 
         {/* Topbar */}
-        <header className="topbar">
+        <header className="topbar" id="dashboard-top">
           <button
             className="mobile-toggle"
             onClick={() => setMobileMenu(!mobileMenu)}
@@ -365,20 +458,52 @@ function App() {
           </div>
 
           <div className="topbar-actions">
-            <button className="icon-button">
+            <button className="icon-button" aria-label="Search code" aria-expanded={searchOpen} onClick={() => { setSearchOpen((open) => !open); setNotificationsOpen(false); }}>
               <Search size={19} />
             </button>
 
-            <button className="icon-button">
+            <button className="icon-button" aria-label="Notifications" aria-expanded={notificationsOpen} onClick={() => { setNotificationsOpen((open) => !open); setSearchOpen(false); }}>
               <Bell size={19} />
-              <span className="notification-dot"></span>
+              {findings.length > 0 && <span className="notification-dot"></span>}
             </button>
 
             <div className="top-avatar">S</div>
+
+            {searchOpen && (
+              <div className="topbar-popover search-popover">
+                <label htmlFor="global-search">Find text in the current code</label>
+                <input id="global-search" autoFocus value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search code…" />
+                {searchQuery.trim() && (
+                  <div className="search-results">
+                    {searchMatches.length ? searchMatches.map((match) => (
+                      <button key={match.line} onClick={() => {
+                        editorRef.current?.revealLineInCenter(match.line);
+                        editorRef.current?.setPosition({ lineNumber: match.line, column: 1 });
+                        editorRef.current?.focus();
+                        setSearchOpen(false);
+                        navigateTo("review", "code-analyzer");
+                      }}>
+                        <span>Line {match.line}</span><code>{match.text}</code>
+                      </button>
+                    )) : <p>No matching lines in this code.</p>}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {notificationsOpen && (
+              <div className="topbar-popover notification-popover" role="status">
+                <strong>Notifications</strong>
+                {analyzed ? (
+                  <p>{findings.length ? `${findings.length} issue${findings.length === 1 ? "" : "s"} found in your latest review.` : "Your latest review found no issues."}</p>
+                ) : <p>You’re all caught up. Run an analysis to see review alerts here.</p>}
+                {aiError && <p className="notification-error">AI review: {aiError}</p>}
+              </div>
+            )}
           </div>
         </header>
 
-        <section className="dashboard">
+        <section className="dashboard" id="dashboard-content">
 
           {/* Welcome Section */}
           <div className="welcome-section">
@@ -402,6 +527,31 @@ function App() {
               Workspace ready
             </div>
           </div>
+
+          <section
+            className="spline-hero"
+            aria-label="Interactive CodeSentry introduction"
+            onPointerMove={(event) => {
+              const bounds = event.currentTarget.getBoundingClientRect();
+              event.currentTarget.style.setProperty("--spotlight-x", `${event.clientX - bounds.left}px`);
+              event.currentTarget.style.setProperty("--spotlight-y", `${event.clientY - bounds.top}px`);
+            }}
+          >
+            <Spotlight />
+            <div className="spline-hero-copy">
+              <span className="spline-hero-kicker"><ShieldCheck size={15} /> CODE QUALITY, IN THREE DIMENSIONS</span>
+              <h2>See the <span>whole picture.</span></h2>
+              <p>Explore your code, uncover hidden risks, and ship with confidence using an AI-powered review workspace.</p>
+              <a className="spline-hero-link" href="#code-analyzer">Start reviewing <span aria-hidden="true">→</span></a>
+            </div>
+            <div className="spline-hero-visual" aria-hidden="true">
+              <SplineScene
+                scene="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"
+                className="spline-canvas"
+              />
+            </div>
+            <div className="spline-hero-caption"><span /> INTERACTIVE SECURITY MODEL</div>
+          </section>
 
           {/* Statistics */}
           <div className="stats-grid">
@@ -471,7 +621,7 @@ function App() {
           </div>
 
           {/* Editor Heading and Action Buttons */}
-          <div className="editor-heading">
+          <div className="editor-heading" id="code-analyzer">
             <div>
               <h2>
                 <Code2 size={20} />
@@ -580,9 +730,10 @@ function App() {
                     setFixError("");
                     setCopyMessage("");
                   }}
+                  onMount={(editor) => { editorRef.current = editor; }}
                   options={{
                     minimap: { enabled: false },
-                    fontSize: 14,
+                    fontSize: editorFontSize,
                     lineNumbers: "on",
                     scrollBeyondLastLine: false,
                     automaticLayout: true,
@@ -606,7 +757,7 @@ function App() {
             </div>
 
             {/* Review Results */}
-            <div className="review-card">
+            <div className="review-card" id="review-results">
 
               <div className="review-header">
                 <div>
@@ -658,13 +809,13 @@ function App() {
 
                   <div className="result-score">
                     <div className="score-circle">
-                      {results.total_issues}
+                      {visibleFindings.length}
                     </div>
 
                     <div>
                       <h3>Analysis completed</h3>
                       <p>
-                        {results.total_issues} issue(s) detected
+                        {securityOnly ? `${visibleFindings.length} security issue(s) detected` : `${results.total_issues} issue(s) detected`}
                       </p>
                     </div>
                   </div>
@@ -674,7 +825,7 @@ function App() {
                     <div>
                       <Bug size={17} />
                       Bugs / Errors
-                      <strong>{bugCount}</strong>
+                      <strong>{securityOnly ? 0 : bugCount}</strong>
                     </div>
 
                     <div>
@@ -686,21 +837,21 @@ function App() {
                     <div>
                       <AlertTriangle size={17} />
                       Warnings
-                      <strong>{warningCount}</strong>
+                      <strong>{securityOnly ? 0 : warningCount}</strong>
                     </div>
 
                   </div>
 
-                  {findings.length === 0 ? (
+                  {visibleFindings.length === 0 ? (
 
                     <div className="finding-success">
                       <CheckCircle2 size={17} />
-                      No issues detected by the current analyzer.
+                      {securityOnly ? "No security issues detected." : "No issues detected by the current analyzer."}
                     </div>
 
                   ) : (
 
-                    findings.map((finding, index) => (
+                    visibleFindings.map((finding, index) => (
 
                       <div className="finding" key={index}>
 
@@ -740,6 +891,34 @@ function App() {
 
             </div>
           </div>
+
+          {showHistory && (
+            <section className="history-card" id="review-history">
+              <div className="history-heading">
+                <div>
+                  <h2><History size={19} /> Review History</h2>
+                  <p>Your latest 25 analyses are saved in this browser.</p>
+                </div>
+                <div className="history-actions">
+                  <button className="history-clear" onClick={clearHistory} disabled={!reviewHistory.length}>Clear history</button>
+                  <button className="history-close" onClick={() => setShowHistory(false)}>Close</button>
+                </div>
+              </div>
+              {reviewHistory.length ? (
+                <ul className="history-list">
+                  {reviewHistory.map((entry) => (
+                    <li key={entry.id}>
+                      <div>
+                        <strong>{entry.language.toUpperCase()} review</strong>
+                        <span>{new Date(entry.createdAt).toLocaleString()} · {entry.totalIssues} issue(s)</span>
+                      </div>
+                      <button className="history-load" onClick={() => loadHistoryEntry(entry)}>Load review</button>
+                    </li>
+                  ))}
+                </ul>
+              ) : <p className="history-empty">No reviews yet. Run Analyze Code to save one here.</p>}
+            </section>
+          )}
 
           {/* AI Review Results */}
           <div className="ai-review-card">
