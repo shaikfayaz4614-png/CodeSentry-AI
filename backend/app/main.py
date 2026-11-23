@@ -1,9 +1,11 @@
-from app.analyzers.python_analyzer import analyze_python_code
+from app.analyzers.multi_language_analyzer import (
+    SUPPORTED_LANGUAGES,
+    analyze_code as analyze_source_code,
+    normalize_language,
+)
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import ast
-import re
 import json
 from urllib.request import Request, urlopen
 # Create FastAPI application
@@ -54,13 +56,27 @@ def health_check():
     }
 
 
+@app.get("/api/languages")
+def supported_languages():
+    return {
+        "languages": [
+            {"id": key, **details}
+            for key, details in SUPPORTED_LANGUAGES.items()
+        ],
+        "analysis_modes": {
+            "python": "Python AST analysis",
+            "json": "JSON parser validation",
+            "other": "Static heuristic checks; source code is not executed",
+        },
+    }
+
+
 # Analyze code
 
 @app.post("/api/analyze")
 def analyze_code(request: CodeRequest):
-
     code = request.code
-    language = request.language.lower()
+    language = normalize_language(request.language)
 
     # Check empty code
     if not code.strip():
@@ -70,94 +86,21 @@ def analyze_code(request: CodeRequest):
             "findings": []
         }
 
-    # Currently supporting Python
-    if language != "python":
+    if language not in SUPPORTED_LANGUAGES:
         return {
             "success": False,
-            "message": "Currently, real analysis supports Python only.",
-            "findings": []
+            "message": "This language is not supported yet.",
+            "findings": [],
+            "supported_languages": list(SUPPORTED_LANGUAGES),
         }
 
-    # Run advanced Python analyzer
-    findings = analyze_python_code(code)
+    findings, analysis_mode = analyze_source_code(code, language)
 
     return {
         "success": True,
         "language": language,
-        "total_issues": len(findings),
-        "findings": findings
-    }
-
-
-    code = request.code
-    language = request.language.lower()
-
-    # Check empty code
-    if not code.strip():
-        return {
-            "success": False,
-            "message": "Please provide source code.",
-            "findings": []
-        }
-
-    # Currently supporting Python analysis
-    if language != "python":
-        return {
-            "success": False,
-            "message": "Currently, real analysis supports Python only.",
-            "findings": []
-        }
-
-    findings = []
-
-    # Check Python syntax
-    try:
-        ast.parse(code)
-
-    except SyntaxError as error:
-        findings.append({
-            "type": "error",
-            "severity": "high",
-            "message": error.msg,
-            "line": error.lineno
-        })
-
-    # Perform basic code checks if syntax is valid
-    if not findings:
-
-        for line_number, line in enumerate(code.splitlines(), 1):
-
-            # Detect eval() and exec()
-            if re.search(r"\b(eval|exec)\s*\(", line):
-                findings.append({
-                    "type": "security",
-                    "severity": "high",
-                    "message": "Potentially unsafe dynamic code execution.",
-                    "line": line_number
-                })
-
-            # Detect bare except
-            if re.match(r"^\s*except\s*:", line):
-                findings.append({
-                    "type": "warning",
-                    "severity": "medium",
-                    "message": "Bare except catches all exceptions. Use a specific exception.",
-                    "line": line_number
-                })
-
-            # Detect possible division by zero
-            if re.search(r"/\s*len\s*\(", line):
-                findings.append({
-                    "type": "bug",
-                    "severity": "medium",
-                    "message": "Check for an empty collection before dividing by its length.",
-                    "line": line_number
-                })
-
-    # Return analysis results
-    return {
-        "success": True,
-        "language": language,
+        "language_label": SUPPORTED_LANGUAGES[language]["label"],
+        "analysis_mode": analysis_mode,
         "total_issues": len(findings),
         "findings": findings
     }

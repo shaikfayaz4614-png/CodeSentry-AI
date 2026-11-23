@@ -6,7 +6,7 @@ It combines static code analysis with a local Large Language Model (LLM) to prov
 
 ## Features
 
-- **Static Code Analysis:** Detects common Python programming issues using Python AST.
+- **Multi-language Static Analysis:** Provides Python AST checks, JSON parsing, and lightweight security, delimiter, and code-risk heuristics for 22 common programming languages.
 - **AI Code Review:** Uses Ollama and Qwen2.5-Coder to explain bugs, security risks, and code improvements.
 - **AI Code Fixer:** Generates corrected source code.
 - **Code Preview:** Preview, copy, and apply AI-generated fixes.
@@ -24,6 +24,12 @@ It combines static code analysis with a local Large Language Model (LLM) to prov
 | AI Model Runtime | Ollama |
 | AI Model | Qwen2.5-Coder |
 | Testing | Pytest |
+
+## Supported Analysis Languages
+
+Python, JavaScript, TypeScript, Java, C, C++, C#, Go, Rust, PHP, Ruby, Swift, Kotlin, Dart, R, SQL, Bash, PowerShell, HTML, CSS, JSON, and Lua.
+
+Python uses the Python AST analyzer and JSON uses the standard JSON parser. The other languages use language-aware static heuristics; they are not full compiler or linter replacements. The analyzer never executes submitted source code. `GET /api/languages` returns the supported language IDs and analysis modes.
 
 ## Project Structure
 
@@ -113,14 +119,14 @@ python -m pytest tests/test_analyzer.py -v
 
 ## Current Limitations
 
-- Static AST-based analysis currently targets Python code.
+- Language-specific deep parsing currently targets Python and JSON; other supported languages use lightweight static heuristics.
 - AI-generated fixes should be reviewed and tested before use.
 - The quality score is an estimate based on detected findings.
 - AI features require a locally running Ollama model.
 
 ## Future Enhancements
 
-- Java and C static analysis.
+- Deeper parser and compiler-backed analysis for additional languages.
 - Automated execution and validation of corrected code in a sandbox.
 - GitHub integration for pull-request reviews.
 - More advanced security vulnerability detection.

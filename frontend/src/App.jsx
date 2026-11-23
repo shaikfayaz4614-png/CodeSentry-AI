@@ -47,6 +47,31 @@ result = calculate_average(numbers)
 print("Average:", result)
 `;
 
+const LANGUAGE_OPTIONS = [
+  { id: "python", label: "Python", extension: "py", monaco: "python" },
+  { id: "javascript", label: "JavaScript", extension: "js", monaco: "javascript" },
+  { id: "typescript", label: "TypeScript", extension: "ts", monaco: "typescript" },
+  { id: "java", label: "Java", extension: "java", monaco: "java" },
+  { id: "c", label: "C", extension: "c", monaco: "c" },
+  { id: "cpp", label: "C++", extension: "cpp", monaco: "cpp" },
+  { id: "csharp", label: "C#", extension: "cs", monaco: "csharp" },
+  { id: "go", label: "Go", extension: "go", monaco: "go" },
+  { id: "rust", label: "Rust", extension: "rs", monaco: "rust" },
+  { id: "php", label: "PHP", extension: "php", monaco: "php" },
+  { id: "ruby", label: "Ruby", extension: "rb", monaco: "ruby" },
+  { id: "swift", label: "Swift", extension: "swift", monaco: "swift" },
+  { id: "kotlin", label: "Kotlin", extension: "kt", monaco: "kotlin" },
+  { id: "dart", label: "Dart", extension: "dart", monaco: "dart" },
+  { id: "r", label: "R", extension: "r", monaco: "r" },
+  { id: "sql", label: "SQL", extension: "sql", monaco: "sql" },
+  { id: "bash", label: "Bash", extension: "sh", monaco: "shell" },
+  { id: "powershell", label: "PowerShell", extension: "ps1", monaco: "powershell" },
+  { id: "html", label: "HTML", extension: "html", monaco: "html" },
+  { id: "css", label: "CSS", extension: "css", monaco: "css" },
+  { id: "json", label: "JSON", extension: "json", monaco: "json" },
+  { id: "lua", label: "Lua", extension: "lua", monaco: "lua" },
+];
+
 function App() {
   const editorRef = useRef(null);
   const [code, setCode] = useState(initialCode);
@@ -679,12 +704,7 @@ function App() {
                 <div className="file-name">
                   <FileCode2 size={17} />
 
-                  main.
-                  {language === "python"
-                    ? "py"
-                    : language === "java"
-                    ? "java"
-                    : "c"}
+                  main.{LANGUAGE_OPTIONS.find((item) => item.id === language)?.extension || "txt"}
 
                   <span className="unsaved-dot"></span>
                 </div>
@@ -704,9 +724,9 @@ function App() {
                       setFixError("");
                     }}
                   >
-                    <option value="python">Python</option>
-                    <option value="java">Java</option>
-                    <option value="c">C</option>
+                    {LANGUAGE_OPTIONS.map((item) => (
+                      <option key={item.id} value={item.id}>{item.label}</option>
+                    ))}
                   </select>
 
                   <ChevronDown size={14} />
@@ -717,7 +737,7 @@ function App() {
               <div className="monaco-container">
                 <Editor
                   height="420px"
-                  language={language}
+                  language={LANGUAGE_OPTIONS.find((item) => item.id === language)?.monaco || language}
                   theme="vs-dark"
                   value={code}
                   onChange={(value) => {
@@ -771,7 +791,9 @@ function App() {
                   <p>Code analysis overview</p>
                 </div>
 
-                <span className="ai-badge">LIVE API</span>
+                <span className="ai-badge">
+                  {results?.analysis_mode === "python_ast" ? "PYTHON AST" : results ? "STATIC CHECKS" : "LIVE API"}
+                </span>
               </div>
 
               {apiError ? (
@@ -808,6 +830,12 @@ function App() {
               ) : (
 
                 <div className="results-content">
+
+                  {results.analysis_mode !== "python_ast" && results.analysis_mode !== "json_parser" && (
+                    <p className="analysis-disclaimer">
+                      Cross-language checks use static heuristics. Source code is not executed, and this is not a full compiler or language-specific linter.
+                    </p>
+                  )}
 
                   <div className="result-score">
                     <div className="score-circle">

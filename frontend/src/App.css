@@ -573,6 +573,17 @@
   padding: 18px;
 }
 
+.analysis-disclaimer {
+  margin: 0 0 15px;
+  padding: 9px 10px;
+  border: 1px solid #554633;
+  border-radius: 7px;
+  background: #251f1a;
+  color: #d6bb91;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
 .result-score {
   display: flex;
   align-items: center;
