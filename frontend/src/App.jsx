@@ -27,7 +27,9 @@ import {
 } from "lucide-react";
 import { SplineScene } from "./components/ui/SplineScene.jsx";
 import { Spotlight } from "./components/ui/Spotlight.jsx";
+import "@fontsource-variable/manrope";
 import "./App.css";
+import "./glassy-theme.css";
 
 const initialCode = `def calculate_average(numbers):
     total = 0
